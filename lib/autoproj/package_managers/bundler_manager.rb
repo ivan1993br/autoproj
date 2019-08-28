@@ -91,8 +91,69 @@ module Autoproj
                     end
                 end
 
+                apply_build_config(prefix_gems)
+
                 if (bundle_rubylib = discover_bundle_rubylib(silent_errors: true))
                     update_env_rubylib(bundle_rubylib, system_rubylib)
+                end
+            end
+
+            # Enumerate the per-gem build configurations
+            def per_gem_build_config
+                ws.config.get('bundler.build', {})
+            end
+
+            # Set the build configuration for the given gem
+            #
+            # This is meant to be used from the Autoproj configuration files,
+            # e.g. overrides.rb or package configuration
+            def self.configure_build_for(ws, gem_name, build_config)
+                c = ws.config.get('bundler.build', {})
+                c[gem_name] = build_config
+                ws.config.set('bundler.build', c)
+            end
+
+            # @api private
+            #
+            # Apply configured per-gem build configuration options
+            # 
+            # @param [String] root_dir the path of the Bundler workspace root
+            #   directory. In Autoproj workspaces, this is {prefix_dir}/gems by
+            #   default
+            def apply_build_config(root_dir)
+                current_config_path = File.join(root_dir, ".bundle", "config")
+                current_config =
+                    if File.file?(current_config_path)
+                        File.readlines(current_config_path)
+                    else
+                        []
+                    end
+
+                build_config = {}
+                per_gem_build_config.each do |name, conf|
+                    build_config[name.upcase] = conf
+                end
+                    
+                new_config = current_config.map do |line|
+                    next(line) unless (m = line.match(/BUNDLER_BUILD__(.*): "(.*)"$/))
+                    next(line) unless (desired_config = build_config.delete(m[1]))
+
+                    if m[2] != desired_config
+                        "BUNDLER_BUILD__#{m[1]}: \"#{desired_config}\""
+                    else
+                        line
+                    end
+                end
+
+                build_config.each do |name, config|
+                    new_config << "BUNDLER_BUILD__#{name}: \"#{config}\""
+                end
+
+                if new_config != current_config
+                    FileUtils.mkdir_p File.dirname(current_config_path)
+                    File.open(current_config_path, 'w') do |io|
+                        io.write new_config.join
+                    end
                 end
             end
 
