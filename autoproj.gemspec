@@ -35,10 +35,13 @@ Gem::Specification.new do |s|
     s.add_runtime_dependency 'tty-spinner', '~> 0.8.0'
     s.add_runtime_dependency 'rb-inotify' if RbConfig::CONFIG['target_os'] =~ /linux/
     s.add_runtime_dependency 'xdg', '= 2.2.5'
+    s.add_runtime_dependency 'os'
+    s.add_runtime_dependency 'win32-dir'
     s.add_development_dependency "flexmock", '~> 2.0', ">= 2.0.0"
     s.add_development_dependency "minitest", "~> 5.0", ">= 5.0"
     s.add_development_dependency "simplecov"
     s.add_development_dependency "aruba"
     s.add_development_dependency "tty-cursor"
+    s.add_development_dependency "os"
 end
 

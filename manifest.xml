@@ -13,6 +13,7 @@
 
     <depend package="autobuild" />
     <depend package="thor" />
+    <depend package="os" />
     <depend package="utilrb" />
     <depend package="concurrent-ruby" />
     <test_depend package="flexmock" />

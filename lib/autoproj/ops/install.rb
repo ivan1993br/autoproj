@@ -2,6 +2,7 @@ require 'pathname'
 require 'optparse'
 require 'fileutils'
 require 'yaml'
+require 'os'
 
 module Autoproj
     module Ops
@@ -45,10 +46,10 @@ module Autoproj
 
                 load_config
 
-                if config['ruby_executable'] != Gem.ruby
+                if config['ruby_executable'] != Pathname(Gem.ruby).sub_ext('').to_s
                     raise "this autoproj installation was already bootstrapped using "\
                         "#{config['ruby_executable']}, but you are currently running "\
-                        "under #{Gem.ruby}. Changing the ruby interpreter in a given "\
+                        "under #{Pathname(Gem.ruby).sub_ext('').to_s}. Changing the ruby interpreter in a given "\
                         "workspace is not supported, you need to do a clean bootstrap"
                 end
                 @ruby_executable = config['ruby_executable']
@@ -391,6 +392,7 @@ module Autoproj
                     next if bin_name == 'ruby'
 
                     bin_shim = File.join(shim_path, bin_name)
+                    puts bin_shim
                     bin_script_lines = File.readlines(bin_script)
                     next if has_autoproj_preamble?(bin_script_lines)
 
@@ -473,6 +475,7 @@ load Gem.bin_path('bundler', 'bundler')"
 # Autoproj generated preamble, v1
 if defined?(Bundler)
     Bundler.with_clean_env do
+        puts *ARGV
         exec(Hash['RUBYLIB' => nil], $0, *ARGV)
     end
 elsif ENV['RUBYLIB']
@@ -520,15 +523,15 @@ require 'bundler/setup'
                     end
                 end
                 # Generate environment files right now, we can at least use bundler
-                File.open(File.join(dot_autoproj, 'env.sh'), 'w') do |io|
+                File.open(File.join(dot_autoproj, env_path), 'w') do |io|
                     env.export_env_sh(io)
                 end
 
                 # And now the root envsh
                 env = Autobuild::Environment.new
-                env.source_before File.join(dot_autoproj, 'env.sh')
+                env.source_before File.join(dot_autoproj, env_path)
                 env.set('AUTOPROJ_CURRENT_ROOT', root_dir)
-                File.open(File.join(root_dir, 'env.sh'), 'w') do |io|
+                File.open(File.join(root_dir, env_path), 'w') do |io|
                     env.export_env_sh(io)
                 end
             end
@@ -671,7 +674,19 @@ require 'bundler/setup'
             end
 
             def autoproj_path
-                File.join(dot_autoproj, 'bin', 'autoproj')
+                if OS.windows?
+                    File.join(dot_autoproj, 'bin', 'autoproj') + '.rb'
+                else
+                    File.join(dot_autoproj, 'bin', 'autoproj')
+                end
+            end
+
+            def env_path
+                if OS.windows?
+                    return "env.bat"
+                else
+                    return "env.sh"
+                end
             end
 
             def run_autoproj(*args)
@@ -685,8 +700,8 @@ require 'bundler/setup'
             end
 
             def stage1
-                if v1_workspace? && File.file?(v1_envsh = File.join(root_dir, 'env.sh'))
-                    FileUtils.cp v1_envsh, 'env.sh-autoproj-v1'
+                if v1_workspace? && File.file?(v1_envsh = File.join(root_dir, env_path))
+                    FileUtils.cp v1_envsh, '#{env_path}-autoproj-v1'
                 end
                 FileUtils.mkdir_p dot_autoproj
                 save_config
